@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ollie's Art Studio — Connection Check (Repaired)</title>
+<style>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:#0c1423;color:#f4f7fc;padding:20px 15px}
+main{max-width:740px;margin:auto}
+h1{font-size:clamp(22px,5vw,31px);margin:12px 0}
+h2{font-size:19px;margin:0 0 10px}p{line-height:1.55;color:#d0def0}
+section{margin:15px 0;padding:18px;background:#14253c;border:1px solid #496c91;border-radius:14px}
+#jsState{font-weight:700;padding:12px;border-radius:8px;background:#242b42;color:#fff0be}
+.check{padding:10px 0;border-bottom:1px solid #32455e;overflow-wrap:anywhere}
+.check:last-child{border-bottom:none}
+.ok{color:#91efb9}.bad{color:#ffb4a9}.slow{color:#ffde91}.neutral{color:#e2e9fa}
+button,.link{display:inline-block;font-size:16px;font-weight:700;color:white;background:#176fc0;border:1px solid #74bcf6;border-radius:10px;padding:12px 14px;margin:5px 5px 5px 0;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.6}
+small{color:#b9cbe3;line-height:1.45;display:block}
+code{font-size:.95em;word-break:break-word}
+#summary{font-weight:700;color:#e6efff}
+</style>
+</head>
+<body>
+<main>
+<h1>Ollie's Art Studio — Connection Check</h1>
+<p><strong>Repaired diagnostic • V35.1.</strong> This page checks startup files without changing drawings, lesson progress, favorites, or website storage. Each request stops checking after 5 seconds.</p>
+<section>
+<h2>1. Can the iPad run the app's JavaScript?</h2>
+<div id="jsState">JavaScript has not started. If this message doesn't change, check Settings → Apps → Safari → Advanced → JavaScript.</div>
+<noscript><p class="bad"><strong>JavaScript is OFF or blocked.</strong> Enable JavaScript in Safari's Advanced settings.</p></noscript>
+</section>
+<section>
+<h2>2. Required website files</h2>
+<p id="summary">Waiting for the JavaScript test above.</p>
+<div id="results">
+<p>Checking has not started. If it remains this way, JavaScript is off or the browser is blocking scripts.</p>
+</div>
+<button id="recheck" type="button" onclick="checkFiles()">Check files again</button>
+<small>Each file is checked independently. A red result usually means missing or unpublished files. Yellow means the network request timed out or was blocked.</small>
+</section>
+<section>
+<h2>3. Open the app or repair its old offline cache</h2>
+<p id="cacheState">Offline cache status not checked.</p>
+<a class="link" href="./index.html?v=35-1" rel="noopener">Open Art Studio V35</a>
+<button id="repair" type="button" onclick="repairOfflineCache()">Repair offline cache only</button>
+<small>The cache repair unregisters only service workers scoped to this app and deletes caches with names beginning <code>ollie-art-studio-</code>. It does not clear localStorage, IndexedDB, browser history, or your child's saved drawings. Keep the Home Screen app installed.</small>
+</section>
+</main>
+<script>
+(function(){
+ var js=document.getElementById('jsState');
+ js.textContent='✓ JavaScript is running on this page.';
+ js.className='ok';
+ js.style.background='#183e31';
+ window.addEventListener('error', function(e){
+   var s=document.getElementById('summary');
+   if(s) s.textContent='JavaScript error: '+(e.message||'Unknown error');
+ });
+})();
+var needed=['index.html','data-fantasy.json','data-animals.json','data-life.json','data-people.json','data-basics.json','data-objects.json','data-land.json','manifest.webmanifest','service-worker.js'];
+var running=false;
+function checkFiles(){
+ if(running)return;
+ running=true;
+ var results=document.getElementById('results'),summary=document.getElementById('summary');
+ results.innerHTML='';
+ summary.textContent='Starting 10 independent checks…';
+ var done=0,ok=0,fail=0,slow=0;
+ needed.forEach(function(file){
+  var row=document.createElement('div');row.className='check neutral';row.textContent='… '+file+' — checking';results.appendChild(row);
+  var xhr=new XMLHttpRequest();var finished=false;
+  function finish(kind,msg){
+   if(finished)return;
+   finished=true;
+   done++;
+   if(kind==='ok'){ok++;row.className='check ok';row.textContent='✓ '+file+' — available';}
+   else if(kind==='slow'){slow++;row.className='check slow';row.textContent='! '+file+' — timed out or blocked: '+msg;}
+   else{fail++;row.className='check bad';row.textContent='✕ '+file+' — '+msg;}
+   summary.textContent=done+' of '+needed.length+' checked. '+ok+' available, '+fail+' missing/failed, '+slow+' timed out.';
+   if(done===needed.length){running=false;summary.textContent+=' All checks finished.';}
+  }
+  try{
+   xhr.open('HEAD','./'+file+'?diagnostic=351',true);
+   xhr.timeout=5000;
+   xhr.onload=function(){if(xhr.status>=200&&xhr.status<400)finish('ok','');else finish('bad','HTTP '+xhr.status);};
+   xhr.onerror=function(){finish('slow','network request failed');};
+   xhr.ontimeout=function(){finish('slow','no response within 5 seconds');};
+   xhr.onabort=function(){finish('slow','request was cancelled');};
+   xhr.send(null);
+  }catch(e){finish('bad',e.message||'browser error');}
+  // Additional safety if ontimeout is not delivered by the browser
+  setTimeout(function(){if(!finished){try{xhr.abort();}catch(_){} finish('slow','browser did not finish the request');}},6500);
+ });
+}
+function cacheDetails(){
+ var field=document.getElementById('cacheState');
+ field.textContent='Checking the offline cache…';
+ var parts=[];
+ if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(function(regs){
+   var n=regs.filter(function(r){return r.scope.indexOf('/Ollies-art-studio/')!==-1}).length;
+   parts.push(n+' installed Art Studio service worker(s)');field.textContent=parts.join('; ');
+  },function(){field.textContent='Unable to inspect service workers here.'});
+ }else field.textContent='This browser has no service-worker access.';
+ if('caches' in window){
+  caches.keys().then(function(keys){
+   var n=keys.filter(function(k){return k.indexOf('ollie-art-studio-')===0}).length;
+   parts.push(n+' Art Studio offline cache(s)');field.textContent=parts.join('; ');
+  },function(){field.textContent='Unable to inspect offline caches.'});
+ }
+ setTimeout(function(){if(field.textContent==='Checking the offline cache…')field.textContent='Cache inspection timed out. File checks above can still be used.'},6500);
+}
+function repairOfflineCache(){
+ if(!confirm('Repair only the Art Studio offline cache? Your saved drawings and lesson progress will not be cleared.'))return;
+ var button=document.getElementById('repair');button.disabled=true;button.textContent='Repairing…';
+ var tasks=[];
+ if('serviceWorker' in navigator){tasks.push(navigator.serviceWorker.getRegistrations().then(function(regs){return Promise.all(regs.filter(function(r){return r.scope.indexOf('/Ollies-art-studio/')!==-1}).map(function(r){return r.unregister()}))}))}
+ if('caches' in window){tasks.push(caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k.indexOf('ollie-art-studio-')===0}).map(function(k){return caches.delete(k)}))}))}
+ Promise.all(tasks).then(function(){button.textContent='Offline cache repaired — reopen app online';},function(e){button.textContent='Repair failed: '+(e.message||e)});
+ setTimeout(function(){if(button.textContent==='Repairing…')button.textContent='Repair has not finished. Reload and retry.'},9000);
+}
+checkFiles();cacheDetails();
+</script>
+</body>
+</html>
